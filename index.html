@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ecosystem Simulation</title>
+    <style>
+        body { margin: 0; background: #111; overflow: hidden; color: #fff; font-family: sans-serif; }
+        canvas { display: block; }
+        #stats { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div id="stats">Creatures: <span id="count">0</span></div>
+    <canvas id="simCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const countDisplay = document.getElementById('count');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let foodList = [];
+        let creatureList = [];
+
+        class Food {
+            constructor(x, y) {
+                this.x = x || Math.random() * canvas.width;
+                this.y = y || Math.random() * canvas.height;
+                this.radius = 3;
+            }
+            draw() {
+                ctx.fillStyle = '#00bfff';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        class Creature {
+            constructor(x, y) {
+                this.x = x || Math.random() * canvas.width;
+                this.y = y || Math.random() * canvas.height;
+                this.energy = 100;
+                this.speed = 2;
+                this.vx = (Math.random() - 0.5) * this.speed;
+                this.vy = (Math.random() - 0.5) * this.speed;
+                this.radius = 6;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.energy -= 0.15; // Energy drains over time
+
+                // Bounce off edges
+                if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+
+                // Eat food
+                foodList.forEach((food, index) => {
+                    let dist = Math.hypot(this.x - food.x, this.y - food.y);
+                    if (dist < this.radius + food.radius) {
+                        this.energy += 30;
+                        foodList.splice(index, 1);
+                    }
+                });
+
+                // Reproduce if enough energy
+                if (this.energy > 180) {
+                    this.energy -= 80;
+                    creatureList.push(new Creature(this.x, this.y));
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = `hsl(120, 100%, ${Math.min(this.energy / 2, 50)}%)`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Initialize world
+        for (let i = 0; i < 40; i++) foodList.push(new Food());
+        for (let i = 0; i < 10; i++) creatureList.push(new Creature());
+
+        // Tap/click to manually add food
+        window.addEventListener('pointerdown', (e) => {
+            foodList.push(new Food(e.clientX, e.clientY));
+        });
+
+        // Game Loop
+        function loop() {
+            ctx.fillStyle = 'rgba(17, 17, 17, 0.3)'; // Trail effect
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Periodically spawn food
+            if (Math.random() < 0.1) foodList.push(new Food());
+
+            foodList.forEach(f => f.draw());
+
+            creatureList = creatureList.filter(c => c.energy > 0);
+            creatureList.forEach(c => {
+                c.update();
+                c.draw();
+            });
+
+            countDisplay.innerText = creatureList.length;
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
