@@ -3,116 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ecosystem Simulation</title>
+    <title>Autonomous RPG Simulation</title>
     <style>
-        body { margin: 0; background: #111; overflow: hidden; color: #fff; font-family: sans-serif; }
-        canvas { display: block; }
-        #stats { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px; }
+        body { background: #0f0f0f; color: #00ff66; font-family: monospace; padding: 20px; margin: 0; }
+        #log { height: 65vh; overflow-y: auto; background: #1a1a1a; padding: 15px; border: 1px solid #333; border-radius: 5px; margin-bottom: 10px; display: flex; flex-direction: column-reverse; }
+        .event { margin-bottom: 8px; border-bottom: 1px dashed #333; padding-bottom: 4px; }
+        #stats { background: #222; padding: 10px; border-radius: 5px; font-size: 1.1em; }
     </style>
 </head>
 <body>
-    <div id="stats">Creatures: <span id="count">0</span></div>
-    <canvas id="simCanvas"></canvas>
+    <h1>Incenscion: Autonomous D&D Sim</h1>
+    <div id="stats">Hero: <span id="hero-name">Thorin</span> | HP: <span id="hero-hp">100</span> | Gold: <span id="hero-gold">0</span> | Level: <span id="hero-level">1</span></div>
+    <br>
+    <div id="log"></div>
 
     <script>
-        const canvas = document.getElementById('simCanvas');
-        const ctx = canvas.getContext('2d');
-        const countDisplay = document.getElementById('count');
+        const hero = { name: "Thorin", hp: 100, maxHp: 100, gold: 0, level: 1, xp: 0 };
+        const logDiv = document.getElementById('log');
 
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        const events = [
+            (h) => { let g = Math.floor(Math.random()*15)+5; h.gold += g; return `${h.name} explored the dark catacombs and recovered ${g} gold.`; },
+            (h) => { let dmg = Math.floor(Math.random()*20)+5; h.hp -= dmg; return `${h.name} was ambushed by shadow goblins! Took ${dmg} damage.`; },
+            (h) => { let heal = Math.floor(Math.random()*25)+10; h.hp = Math.min(h.maxHp, h.hp + heal); return `${h.name} found a safe cavern ledge to rest and recovered ${heal} HP.`; },
+            (h) => { let xpGain = 30; h.xp += xpGain; if(h.xp >= 100) { h.level++; h.maxHp += 25; h.hp = h.maxHp; h.xp = 0; return `${h.name} defeated an elite boss, gained ${xpGain} XP, and leveled up to Level ${h.level}!`; } return `${h.name} slayed a wandering skeleton and earned ${xpGain} XP.`; }
+        ];
 
-        let foodList = [];
-        let creatureList = [];
+        function addLog(text) {
+            const div = document.createElement('div');
+            div.className = 'event';
+            div.innerText = `[${new Date().toLocaleTimeString()}] ${text}`;
+            logDiv.prepend(div);
+        }
 
-        class Food {
-            constructor(x, y) {
-                this.x = x || Math.random() * canvas.width;
-                this.y = y || Math.random() * canvas.height;
-                this.radius = 3;
-            }
-            draw() {
-                ctx.fillStyle = '#00bfff';
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fill();
+        function updateUI() {
+            document.getElementById('hero-hp').innerText = hero.hp;
+            document.getElementById('hero-gold').innerText = hero.gold;
+            document.getElementById('hero-level').innerText = hero.level;
+            if (hero.hp <= 0) {
+                addLog(`${hero.name} collapsed from wounds... Reviving at camp with full health.`);
+                hero.hp = hero.maxHp;
             }
         }
 
-        class Creature {
-            constructor(x, y) {
-                this.x = x || Math.random() * canvas.width;
-                this.y = y || Math.random() * canvas.height;
-                this.energy = 100;
-                this.speed = 2;
-                this.vx = (Math.random() - 0.5) * this.speed;
-                this.vy = (Math.random() - 0.5) * this.speed;
-                this.radius = 6;
-            }
+        // Autonomous tick loop runs every 3 seconds
+        setInterval(() => {
+            const randomEvent = events[Math.floor(Math.random() * events.length)];
+            const message = randomEvent(hero);
+            addLog(message);
+            updateUI();
+        }, 3000);
 
-            update() {
-                this.x += this.vx;
-                this.y += this.vy;
-                this.energy -= 0.15; // Energy drains over time
-
-                // Bounce off edges
-                if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
-                if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
-
-                // Eat food
-                foodList.forEach((food, index) => {
-                    let dist = Math.hypot(this.x - food.x, this.y - food.y);
-                    if (dist < this.radius + food.radius) {
-                        this.energy += 30;
-                        foodList.splice(index, 1);
-                    }
-                });
-
-                // Reproduce if enough energy
-                if (this.energy > 180) {
-                    this.energy -= 80;
-                    creatureList.push(new Creature(this.x, this.y));
-                }
-            }
-
-            draw() {
-                ctx.fillStyle = `hsl(120, 100%, ${Math.min(this.energy / 2, 50)}%)`;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-
-        // Initialize world
-        for (let i = 0; i < 40; i++) foodList.push(new Food());
-        for (let i = 0; i < 10; i++) creatureList.push(new Creature());
-
-        // Tap/click to manually add food
-        window.addEventListener('pointerdown', (e) => {
-            foodList.push(new Food(e.clientX, e.clientY));
-        });
-
-        // Game Loop
-        function loop() {
-            ctx.fillStyle = 'rgba(17, 17, 17, 0.3)'; // Trail effect
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Periodically spawn food
-            if (Math.random() < 0.1) foodList.push(new Food());
-
-            foodList.forEach(f => f.draw());
-
-            creatureList = creatureList.filter(c => c.energy > 0);
-            creatureList.forEach(c => {
-                c.update();
-                c.draw();
-            });
-
-            countDisplay.innerText = creatureList.length;
-            requestAnimationFrame(loop);
-        }
-
-        loop();
+        addLog("Simulation initialized. The autonomous adventure begins...");
     </script>
 </body>
 </html>
